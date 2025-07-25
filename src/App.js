@@ -1,4 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+
+// --- Firebase Configuration ---
+// This is your actual configuration.
+const firebaseConfig = {
+  apiKey: "AIzaSyAfsYeQt5IvJvFzJGSpP5YNlzr-aHc8K1Y",
+  authDomain: "portfolio-5b9ca.firebaseapp.com",
+  projectId: "portfolio-5b9ca",
+  storageBucket: "portfolio-5b9ca.appspot.com",
+  messagingSenderId: "203665591912",
+  appId: "1:203665591912:web:70fdab8c24acbb7d5f75dd",
+  measurementId: "G-Y254G7BNY8"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 
 // --- Helper Functions & Dummy Data ---
 
@@ -47,6 +66,53 @@ const initialContent = {
   },
   apiKeys: {
       otx: "" // <-- Placeholder for AlienVault OTX API Key
+  }
+};
+
+// --- Firebase Helper Functions ---
+
+/**
+ * Save portfolio content to Firestore
+ * @param {Object} content - The portfolio content to save
+ * @returns {Promise<boolean>} - Success status
+ */
+const saveContentToFirestore = async (content) => {
+  try {
+    const docRef = doc(db, 'portfolio', 'content');
+    await setDoc(docRef, {
+      ...content,
+      lastUpdated: new Date().toISOString()
+    });
+    console.log('Content saved to Firestore successfully');
+    return true;
+  } catch (error) {
+    console.error('Error saving to Firestore:', error);
+    return false;
+  }
+};
+
+/**
+ * Load portfolio content from Firestore
+ * @returns {Promise<Object|null>} - The loaded content or null if not found
+ */
+const loadContentFromFirestore = async () => {
+  try {
+    const docRef = doc(db, 'portfolio', 'content');
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      // Remove the lastUpdated field before returning
+      const { lastUpdated, ...content } = data;
+      console.log('Content loaded from Firestore successfully');
+      return content;
+    } else {
+      console.log('No content found in Firestore, using initial content');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error loading from Firestore:', error);
+    return null;
   }
 };
 
@@ -483,6 +549,8 @@ const CLI = ({ content, setContent, setCliActive }) => {
 
 const AdminPanel = ({ content, setContent, setAdminOpen }) => {
   const [tempContent, setTempContent] = useState(JSON.parse(JSON.stringify(content))); // Deep copy
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
 
   const handleFieldChange = (section, field, value) => {
     setTempContent(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
@@ -509,9 +577,33 @@ const AdminPanel = ({ content, setContent, setAdminOpen }) => {
       setTempContent(prev => ({...prev, [section]: prev[section].filter((_, i) => i !== index)}));
   };
 
-  const handleSave = () => {
-      setContent(tempContent);
-      setAdminOpen(false);
+  const handleSave = async () => {
+      setIsSaving(true);
+      setSaveStatus('Saving to Firestore...');
+      
+      try {
+        const success = await saveContentToFirestore(tempContent);
+        if (success) {
+          setContent(tempContent);
+          setSaveStatus('✓ Saved successfully!');
+          setTimeout(() => {
+            setAdminOpen(false);
+          }, 1000);
+        } else {
+          setSaveStatus('✗ Failed to save to Firestore');
+          // Still update local state even if Firebase fails
+          setContent(tempContent);
+        }
+      } catch (error) {
+        console.error('Save error:', error);
+        setSaveStatus('✗ Error occurred while saving');
+        // Still update local state even if Firebase fails
+        setContent(tempContent);
+      } finally {
+        setIsSaving(false);
+        // Clear status after 3 seconds
+        setTimeout(() => setSaveStatus(''), 3000);
+      }
   };
   
   const InputField = ({label, value, onChange, placeholder}) => (
@@ -572,9 +664,24 @@ const AdminPanel = ({ content, setContent, setAdminOpen }) => {
             <button onClick={() => addListItem('certs')} className="mt-2 text-sm bg-red-600/50 hover:bg-red-500/80 px-3 py-1 rounded">+ Add Certificate</button>
           </div>
         </div>
-        <div className="p-4 border-t border-red-500/50 text-right">
-          <button onClick={() => setAdminOpen(false)} className="text-slate-300 px-4 py-2 rounded mr-2 hover:bg-slate-700">Cancel</button>
-          <button onClick={handleSave} className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-500 font-bold">SAVE & DEPLOY</button>
+        <div className="p-4 border-t border-red-500/50 flex justify-between items-center">
+          <div className="text-sm">
+            {saveStatus && (
+              <span className={`${saveStatus.includes('✓') ? 'text-green-400' : saveStatus.includes('✗') ? 'text-red-400' : 'text-yellow-400'}`}>
+                {saveStatus}
+              </span>
+            )}
+          </div>
+          <div>
+            <button onClick={() => setAdminOpen(false)} className="text-slate-300 px-4 py-2 rounded mr-2 hover:bg-slate-700">Cancel</button>
+            <button 
+              onClick={handleSave} 
+              disabled={isSaving}
+              className={`px-6 py-2 rounded font-bold ${isSaving ? 'bg-slate-600 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500'} text-white`}
+            >
+              {isSaving ? 'SAVING...' : 'SAVE & DEPLOY'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -586,7 +693,28 @@ export default function App() {
   const [content, setContent] = useState(initialContent);
   const [cliActive, setCliActive] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const adminCommandRef = useRef("");
+
+  // Load content from Firestore on app startup
+  useEffect(() => {
+    const loadContent = async () => {
+      setIsLoading(true);
+      try {
+        const firestoreContent = await loadContentFromFirestore();
+        if (firestoreContent) {
+          setContent(firestoreContent);
+        }
+      } catch (error) {
+        console.error('Error loading content on startup:', error);
+        // Continue with initial content if loading fails
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadContent();
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -627,6 +755,16 @@ export default function App() {
     <main className="bg-[#0a101f] min-h-screen overflow-x-hidden">
       <ParticleCanvas />
       <CursorTrail />
+      
+      {/* Loading Screen */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-[#0a101f] z-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-cyan-300 font-mono text-sm">Loading portfolio data...</p>
+          </div>
+        </div>
+      )}
       
       <div className={`transition-all duration-500 ${cliActive || adminOpen ? 'opacity-20 blur-sm scale-95' : 'opacity-100'}`}>
         <GUI content={content} />
