@@ -1613,7 +1613,7 @@ const GUI = ({ content, isDarkMode, setIsDarkMode }) => {
         </div>
         <p className="mt-2">STATUS: <span className="text-green-400">{content.whoami.status}</span></p>
         <p className="text-xs mt-2">
-          © {new Date().getFullYear()} <span className="text-cyan-400">Harsh Raj</span> | 
+          © {new Date().getFullYear()} <span className="text-cyan-400">Harsh Raj (SecWithHarsh) </span> | 
           <span className="bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent font-semibold">CTI Portfolio v2.0</span>
         </p>
       </footer>
