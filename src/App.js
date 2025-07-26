@@ -294,55 +294,43 @@ const loadContentFromFirestore = async () => {
 
 // --- Custom Hooks ---
 
-const useTypewriter = (text, speed = 50, eraseSpeed = 30, delay = 1000) => {
+const useTypewriter = (text, speed = 50) => {
   const [displayText, setDisplayText] = useState('');
+  const [isComplete, setIsComplete] = useState(false);
   const typingRef = useRef({
     index: 0,
-    isErasing: false,
-    text: text,
-    timeoutId: null
+    text: text
   });
 
   useEffect(() => {
-    // Update text in ref when it changes, and reset the animation
-    typingRef.current.text = text;
-    typingRef.current.index = 0;
-    typingRef.current.isErasing = false;
-    setDisplayText('');
-    if (typingRef.current.timeoutId) clearTimeout(typingRef.current.timeoutId);
+    // Update text in ref when it changes, and reset the animation only if it's different
+    if (typingRef.current.text !== text) {
+      typingRef.current.text = text;
+      typingRef.current.index = 0;
+      setDisplayText('');
+      setIsComplete(false);
+    }
   }, [text]);
 
   useEffect(() => {
-    if (!typingRef.current.text) return;
+    if (!typingRef.current.text || isComplete) return;
 
     const handleTyping = () => {
-      let { index, isErasing, text } = typingRef.current;
+      const { index, text } = typingRef.current;
       
-      if (!isErasing) {
-        if (index < text.length) {
-          setDisplayText(prev => text.substring(0, prev.length + 1));
-          typingRef.current.index++;
-        } else {
-          // Wait before erasing
-          typingRef.current.timeoutId = setTimeout(() => {
-            typingRef.current.isErasing = true;
-          }, delay);
-        }
+      if (index < text.length) {
+        setDisplayText(text.substring(0, index + 1));
+        typingRef.current.index++;
       } else {
-        if (displayText.length > 0) {
-          setDisplayText(prev => text.substring(0, prev.length - 1));
-        } else {
-          typingRef.current.isErasing = false;
-          typingRef.current.index = 0;
-        }
+        // Typing complete - stop the interval
+        setIsComplete(true);
       }
     };
     
-    const currentSpeed = typingRef.current.isErasing ? eraseSpeed : speed;
-    const intervalId = setInterval(handleTyping, currentSpeed);
+    const intervalId = setInterval(handleTyping, speed);
 
     return () => clearInterval(intervalId);
-  }, [speed, eraseSpeed, delay, displayText, text]); // Dependency on displayText is needed to re-evaluate interval speed
+  }, [speed, displayText, text, isComplete]);
   
   return displayText;
 };
@@ -1434,7 +1422,7 @@ const CertificateCard = ({ cert }) => {
 
 
 const GUI = ({ content, isDarkMode, setIsDarkMode }) => {
-  const aboutText = useTypewriter(content.about, 20, 10, 3000);
+  const aboutText = useTypewriter(content.about, 20);
   const [currentThreatFeed, setCurrentThreatFeed] = useState('');
   const [showMitreHeatmap, setShowMitreHeatmap] = useState(false);
   const [showCTIQuiz, setShowCTIQuiz] = useState(false);
