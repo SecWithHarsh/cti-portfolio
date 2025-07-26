@@ -1607,13 +1607,12 @@ const GUI = ({ content, isDarkMode, setIsDarkMode }) => {
           <div className="w-2 h-2 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full animate-pulse"></div>
           <p className={isDarkMode ? 'text-slate-400' : 'text-slate-600'}>
             Press <span className="text-cyan-400 font-semibold">'~'</span> to access CLI | 
-            Type <span className="text-purple-400 font-semibold">'/admin'</span> for admin panel
           </p>
           <div className="w-2 h-2 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full animate-pulse"></div>
         </div>
         <p className="mt-2">STATUS: <span className="text-green-400">{content.whoami.status}</span></p>
         <p className="text-xs mt-2">
-          © {new Date().getFullYear()} <span className="text-cyan-400">Harsh Raj</span> | 
+          © {new Date().getFullYear()} <span className="text-cyan-400">Harsh Raj (SecWithHarsh) </span> | 
           <span className="bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent font-semibold">CTI Portfolio v2.0</span>
         </p>
       </footer>
